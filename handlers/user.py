@@ -42,6 +42,13 @@ def _is_media(message: Message) -> bool:
     )
 
 
+async def _safe_delete(message: Message) -> None:
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
 async def _replace_or_edit(message: Message, text: str, kb) -> Message:
     """Якщо поточне media — видаляємо й шлемо нове. Інакше edit_text.
 
@@ -119,6 +126,8 @@ async def cb_welcome(callback: CallbackQuery):
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
+    await _safe_delete(message)
+
     product_id = _parse_buy_payload(command.args)
 
     if product_id is None:
@@ -322,6 +331,7 @@ def _build_buy_view(product: dict, payment: dict) -> tuple[str, InlineKeyboardMa
 
 @router.message(Command("my"))
 async def cmd_my(message: Message):
+    await _safe_delete(message)
     await _send_my_purchases(message, user_id=message.from_user.id, edit=False)
 
 

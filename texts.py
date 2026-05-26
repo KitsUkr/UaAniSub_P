@@ -46,10 +46,9 @@ CODE_GENERATED_TOAST = "Код згенеровано"
 # ══════════════════════════════════════════════════════════════════════════════
 
 PAID_SUCCESS = (
-    "<b>Дякуємо за підтримку!</b>{title_line}\n\n"
+    "<b>Дякуємо за підтримку!</b> <i>{overpaid_note}</i>{title_line}\n\n"
     "<a href=\"{link}\">{link}</a>\n\n"
     "<i>Одноразове — діє для одного переходу.</i>"
-    "{overpaid_note}"
 )
 PAID_TITLE_LINE = "\nКанал: <b>{title}</b>"
 PAID_OVERPAID_NOTE = "\n<i>Ого! Дякуємо за додаткові {diff:.2f}₴.</i>"
