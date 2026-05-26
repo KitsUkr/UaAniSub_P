@@ -18,6 +18,7 @@ from database import (
     create_payment,
     get_product,
     list_user_purchases,
+    set_payment_instruction_message_id,
     user_has_paid_product,
 )
 
@@ -41,24 +42,27 @@ def _is_media(message: Message) -> bool:
     )
 
 
-async def _replace_or_edit(message: Message, text: str, kb) -> None:
-    """Якщо поточне media — видаляємо й шлемо нове. Інакше edit_text."""
+async def _replace_or_edit(message: Message, text: str, kb) -> Message:
+    """Якщо поточне media — видаляємо й шлемо нове. Інакше edit_text.
+
+    Повертає фінальний Message (той, що бачить юзер) — потрібно для збереження
+    message_id у БД, щоб потім edit'нути його з webhook'а.
+    """
     if _is_media(message):
         try:
             await message.delete()
         except Exception:
             pass
-        await message.bot.send_message(
+        return await message.bot.send_message(
             message.chat.id, text, reply_markup=kb, disable_web_page_preview=True,
         )
-    else:
-        try:
-            await message.edit_text(text, reply_markup=kb, disable_web_page_preview=True)
-        except Exception as exc:
-            logger.warning("edit_text fallback: %s", exc)
-            await message.bot.send_message(
-                message.chat.id, text, reply_markup=kb, disable_web_page_preview=True,
-            )
+    try:
+        return await message.edit_text(text, reply_markup=kb, disable_web_page_preview=True)
+    except Exception as exc:
+        logger.warning("edit_text fallback: %s", exc)
+        return await message.bot.send_message(
+            message.chat.id, text, reply_markup=kb, disable_web_page_preview=True,
+        )
 
 
 async def _send_media_with_caption(bot, chat_id: int, product: dict, caption: str, reply_markup) -> None:
@@ -261,7 +265,8 @@ async def _proceed_to_buy(callback: CallbackQuery, product: dict) -> None:
         return
 
     text, kb = _build_buy_view(product, payment)
-    await _replace_or_edit(callback.message, text, kb)
+    sent = await _replace_or_edit(callback.message, text, kb)
+    await set_payment_instruction_message_id(payment["id"], sent.message_id)
     await callback.answer(texts.CODE_GENERATED_TOAST)
 
 

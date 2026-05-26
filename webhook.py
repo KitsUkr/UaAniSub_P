@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiohttp import web
 
 import monobank
@@ -144,15 +145,11 @@ async def _extract_payment_by_comment(comment: str) -> dict | None:
 
 
 def _is_expired(payment: dict) -> bool:
-    expires_at = payment.get("expires_at")
-    if not expires_at:
+    dt = payment.get("expires_at")
+    if not dt:
         return False
-    try:
-        dt = datetime.fromisoformat(expires_at)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc) > dt and payment["status"] != "paid"
 
 
@@ -185,6 +182,7 @@ async def _handle_success(bot: Bot, payment: dict, statement_id: str, amount: in
             error=str(exc),
             user_id=user_id,
         ))
+        await _delete_instruction(bot, user_id, payment.get("instruction_message_id"))
         await _safe_send(bot, user_id, texts.PAID_INVITE_LINK_FAILED)
         return
 
@@ -199,11 +197,20 @@ async def _handle_success(bot: Bot, payment: dict, statement_id: str, amount: in
     else:
         overpaid_note = ""
 
-    await _safe_send(bot, user_id, texts.PAID_SUCCESS.format(
-        title_line=title_line,
-        link=link.invite_link,
-        overpaid_note=overpaid_note,
-    ))
+    await _delete_instruction(bot, user_id, payment.get("instruction_message_id"))
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts.BTN_MY_PURCHASES, callback_data="my_purchases")],
+    ])
+    await _safe_send(
+        bot, user_id,
+        texts.PAID_SUCCESS.format(
+            title_line=title_line,
+            link=link.invite_link,
+            overpaid_note=overpaid_note,
+        ),
+        reply_markup=kb,
+    )
     logger.info(
         "✅ Видано доступ: payment=%d, user=%d, chat=%d, paid=%d коп.",
         payment_id, user_id, chat_id, amount,
@@ -217,11 +224,15 @@ async def _handle_underpaid(bot: Bot, payment: dict, statement_id: str, amount: 
 
     expected = payment["amount_kop"]
     diff = (expected - amount) / 100
-    await _safe_send(bot, payment["user_id"], texts.UNDERPAID_USER.format(
-        expected=expected / 100,
-        got=amount / 100,
-        diff=diff,
-    ))
+    await _delete_instruction(bot, payment["user_id"], payment.get("instruction_message_id"))
+    await _safe_send(
+        bot, payment["user_id"],
+        texts.UNDERPAID_USER.format(
+            expected=expected / 100,
+            got=amount / 100,
+            diff=diff,
+        ),
+    )
     await _alert_admins(bot, texts.ADMIN_UNDERPAID.format(
         payment_id=payment_id,
         code=payment["payment_code"],
@@ -257,11 +268,31 @@ async def _resolve_chat_title(bot: Bot, chat_id: int) -> str:
         return ""
 
 
-async def _safe_send(bot: Bot, user_id: int, text: str) -> None:
+async def _safe_send(
+    bot: Bot,
+    user_id: int,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
     try:
-        await bot.send_message(user_id, text, disable_web_page_preview=True)
+        await bot.send_message(
+            user_id, text,
+            reply_markup=reply_markup,
+            disable_web_page_preview=True,
+        )
     except TelegramAPIError as exc:
         logger.warning("Не вдалося надіслати %d: %s", user_id, exc)
+
+
+async def _delete_instruction(bot: Bot, user_id: int, message_id: int | None) -> None:
+    """Видаляє повідомлення з BUY_INSTRUCTION. Помилки ігноруємо — юзер міг
+    видалити сам, або message_id застарів (юзер натиснув «Назад»)."""
+    if not message_id:
+        return
+    try:
+        await bot.delete_message(chat_id=user_id, message_id=message_id)
+    except TelegramAPIError as exc:
+        logger.info("delete_message (msg=%s) пропущено: %s", message_id, exc)
 
 
 async def _alert_admins(bot: Bot, text: str) -> None:

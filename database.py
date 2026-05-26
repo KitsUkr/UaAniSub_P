@@ -52,22 +52,25 @@ async def init_db() -> None:
             );
 
             CREATE TABLE IF NOT EXISTS payments (
-                id              BIGSERIAL   PRIMARY KEY,
-                payment_code    TEXT        NOT NULL UNIQUE,
-                user_id         BIGINT      NOT NULL,
-                username        TEXT        DEFAULT '',
-                full_name       TEXT        DEFAULT '',
-                product_id      BIGINT      NOT NULL REFERENCES products(id),
-                chat_id         BIGINT      NOT NULL,
-                amount_kop      BIGINT      NOT NULL,
-                received_kop    BIGINT      DEFAULT NULL,
-                status          TEXT        NOT NULL DEFAULT 'pending',
-                statement_id    TEXT        DEFAULT NULL UNIQUE,
-                invite_link     TEXT        NOT NULL DEFAULT '',
-                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                expires_at      TIMESTAMPTZ NOT NULL,
-                paid_at         TIMESTAMPTZ DEFAULT NULL
+                id                     BIGSERIAL   PRIMARY KEY,
+                payment_code           TEXT        NOT NULL UNIQUE,
+                user_id                BIGINT      NOT NULL,
+                username               TEXT        DEFAULT '',
+                full_name              TEXT        DEFAULT '',
+                product_id             BIGINT      NOT NULL REFERENCES products(id),
+                chat_id                BIGINT      NOT NULL,
+                amount_kop             BIGINT      NOT NULL,
+                received_kop           BIGINT      DEFAULT NULL,
+                status                 TEXT        NOT NULL DEFAULT 'pending',
+                statement_id           TEXT        DEFAULT NULL UNIQUE,
+                invite_link            TEXT        NOT NULL DEFAULT '',
+                instruction_message_id BIGINT      DEFAULT NULL,
+                created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                expires_at             TIMESTAMPTZ NOT NULL,
+                paid_at                TIMESTAMPTZ DEFAULT NULL
             );
+
+            ALTER TABLE payments ADD COLUMN IF NOT EXISTS instruction_message_id BIGINT;
 
             CREATE INDEX IF NOT EXISTS idx_payments_user_id    ON payments(user_id);
             CREATE INDEX IF NOT EXISTS idx_payments_product_id ON payments(product_id);
@@ -323,6 +326,15 @@ async def set_payment_invite_link(payment_id: int, invite_link: str) -> bool:
         status = await db.execute(
             "UPDATE payments SET invite_link = $1 WHERE id = $2",
             invite_link, payment_id,
+        )
+        return _rowcount(status) > 0
+
+
+async def set_payment_instruction_message_id(payment_id: int, message_id: int) -> bool:
+    async with get_db() as db:
+        status = await db.execute(
+            "UPDATE payments SET instruction_message_id = $1 WHERE id = $2",
+            message_id, payment_id,
         )
         return _rowcount(status) > 0
 
