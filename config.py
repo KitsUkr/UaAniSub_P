@@ -18,6 +18,7 @@ MONO_TOKEN = _require("MONO_TOKEN")
 MONO_JAR_SEND_ID = _require("MONO_JAR_SEND_ID")
 MONO_WEBHOOK_SECRET = _require("MONO_WEBHOOK_SECRET")
 WEBHOOK_BASE_URL = _require("WEBHOOK_BASE_URL").rstrip("/")
+DATABASE_URL = _require("DATABASE_URL")
 
 ADMIN_IDS: list[int] = [
     int(uid.strip())
