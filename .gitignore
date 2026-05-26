@@ -1,4 +1,19 @@
-__pycache__/
+# Secrets / runtime
 .env
-bot.db
-bot.log
+*.log
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store

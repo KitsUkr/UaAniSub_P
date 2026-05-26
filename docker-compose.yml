@@ -1,0 +1,43 @@
+services:
+  uaanisubbot:
+    container_name: uaanisubbot
+    restart: unless-stopped
+    build: .
+    image: uaanisubbot:latest
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - WEBHOOK_HOST=0.0.0.0
+      - WEBHOOK_PORT=8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./bot.log:/app/bot.log
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: cloudbeaver
+    restart: unless-stopped
+    ports:
+      - "8978:8978"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
